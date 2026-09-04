@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Airplane Controller - OpenWii Web</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- HOST UI (Shows on Laptop) -->
+    <div id="host-lobby" class="ui-layer" style="display: none;">
+        <div class="glass-panel max-w-md w-full">
+            <h1 class="text-4xl font-bold mb-2">Flight Simulator</h1>
+            <p class="text-gray-700 mb-6">Scan to connect your phone as a steering wheel.</p>
+
+            <div class="bg-white p-4 rounded-xl inline-block mb-4 shadow-sm">
+                <div id="qrcode"></div>
+            </div>
+
+            <p id="connection-status" class="text-sm font-bold text-blue-600 animate-pulse">Waiting for controller...</p>
+        </div>
+    </div>
+
+    <!-- The 3D Game Canvas -->
+    <div id="canvas-container"></div>
+
+    <!-- CONTROLLER UI (Shows on Phone) -->
+    <div id="controller-ui" class="ui-layer" style="display: none;">
+        <div id="controller-setup" class="flex flex-col items-center justify-center h-full px-6 text-center">
+            <h2 class="text-3xl font-bold mb-4">Wii Controller</h2>
+            <p class="mb-8 text-gray-600">Hold your phone like a steering wheel. We need permission to access your gyroscope to steer the plane.</p>
+            <button id="btn-start-gyro" class="bg-blue-600 text-white px-8 py-4 rounded-full font-bold text-xl shadow-lg w-full max-w-xs">
+                Connect &amp; Start
+            </button>
+            <p id="ctrl-status" class="mt-4 text-sm font-bold text-gray-500"></p>
+        </div>
+
+        <div id="controller-active" class="flex-col items-center justify-center h-full w-full" style="display: none;">
+            <div class="flex justify-between items-center w-full px-8 pt-8">
+                <span class="text-sm font-bold text-green-500">● Connected</span>
+                <button id="btn-recalibrate" class="text-blue-500 font-bold text-sm bg-blue-100 px-4 py-2 rounded-full shadow-sm">Recalibrate Center</button>
+            </div>
+
+            <div id="gyro-debug" class="text-xs text-gray-500 font-mono mt-4 text-center px-4">Waiting for motion data...</div>
+
+            <div class="flex-grow flex items-center justify-between w-full px-6 mt-10">
+                <button id="btn-brake" class="btn-pedal btn-brake">BRAKE</button>
+                <button id="btn-shoot" class="btn-fire">FIRE</button>
+                <button id="btn-accel" class="btn-pedal btn-accel">ACCEL</button>
+            </div>
+
+            <p class="mt-auto pb-8 text-gray-400 text-sm">Tilt phone to steer • Hold buttons to change speed</p>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC (split into separate files) -->
+    <script src="config.js"></script>
+    <script src="controller.js"></script>
+    <script src="game.js"></script>
+    <script src="host.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>

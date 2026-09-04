@@ -1,0 +1,87 @@
+body {
+    margin: 0;
+    overflow: hidden;
+    background-color: #87CEEB;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+#canvas-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 1;
+}
+
+.ui-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.glass-panel {
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 24px;
+    padding: 2rem;
+    color: #111;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+}
+
+#controller-ui {
+    background-color: #f0f0f5;
+    color: #111;
+    touch-action: manipulation;
+}
+
+.btn-fire {
+    background: linear-gradient(135deg, #ff416c, #ff4b2b);
+    color: white;
+    border-radius: 50%;
+    width: 100px;
+    height: 100px;
+    font-size: 1.25rem;
+    font-weight: bold;
+    box-shadow: 0 10px 20px rgba(255, 75, 43, 0.4);
+    border: none;
+}
+
+.btn-fire:active {
+    transform: scale(0.95);
+    box-shadow: 0 5px 10px rgba(255, 75, 43, 0.4);
+}
+
+.btn-pedal {
+    border-radius: 16px;
+    width: 80px;
+    height: 80px;
+    font-size: 0.9rem;
+    font-weight: bold;
+    border: none;
+    color: white;
+    box-shadow: 0 8px 15px rgba(0,0,0,0.2);
+    transition: transform 0.1s;
+    user-select: none;
+}
+
+.btn-pedal:active {
+    transform: scale(0.95);
+}
+
+.btn-accel {
+    background: linear-gradient(135deg, #38ef7d, #11998e);
+}
+
+.btn-brake {
+    background: linear-gradient(135deg, #ff9966, #ff5e62);
+}
