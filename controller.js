@@ -33,21 +33,32 @@ function initController(hostPeerId) {
 
         peer = new Peer(peerConfig);
 
-        peer.on('open', () => {
+        peer.on('open', (myId) => {
+            statusEl.innerText = "Signaling OK (" + myId.slice(0, 6) + "...). Opening data channel...";
             conn = peer.connect(hostPeerId, { reliable: true });
 
             // FIX: without a timeout, a failed connection just hangs on
             // "Connecting to Laptop..." forever with no feedback.
             const connectTimeout = setTimeout(() => {
                 if (!conn.open) {
-                    statusEl.innerText = "Couldn't reach the laptop. Make sure it's on the game page and try again.";
+                    const iceState = conn.peerConnection ? conn.peerConnection.iceConnectionState : 'unknown';
+                    statusEl.innerHTML = `Couldn't reach the laptop.<br>ICE state: <b>${iceState}</b><br>Try both devices on the same WiFi to test.`;
                     statusEl.className = "mt-4 text-sm font-bold text-red-500";
                 }
-            }, 8000);
+            }, 12000);
 
             conn.on('open', () => {
                 clearTimeout(connectTimeout);
                 activateControllerUI();
+            });
+
+            // Watch the raw ICE state so we can see exactly where it's stuck
+            // (checking / failed / disconnected) instead of just "not working".
+            conn.on('iceStateChanged', (state) => {
+                console.log('ICE state:', state);
+                if (!conn.open) {
+                    statusEl.innerText = "Negotiating connection... (" + state + ")";
+                }
             });
 
             // Listen for handshake from host just in case local 'open' is slow
@@ -60,7 +71,7 @@ function initController(hostPeerId) {
 
             conn.on('error', (err) => {
                 console.error("Connection error:", err);
-                statusEl.innerText = "Connection lost!";
+                statusEl.innerText = "Connection error: " + (err.type || err.message || err);
                 statusEl.className = "mt-4 text-sm font-bold text-red-500";
             });
 
@@ -74,6 +85,11 @@ function initController(hostPeerId) {
             console.error("Peer error:", err);
             statusEl.innerText = "Failed to connect: " + err.type;
             statusEl.className = "mt-4 text-sm font-bold text-red-500";
+        });
+
+        peer.on('disconnected', () => {
+            statusEl.innerText = "Lost connection to signaling server, retrying...";
+            peer.reconnect();
         });
     });
 
