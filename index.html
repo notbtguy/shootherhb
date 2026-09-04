@@ -18,8 +18,13 @@
         .glass-panel { background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.4); border-radius: 24px; padding: 2rem; color: #111; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
         
         #controller-ui { background-color: #f0f0f5; color: #111; touch-action: manipulation; }
-        .btn-fire { background: linear-gradient(135deg, #ff416c, #ff4b2b); color: white; border-radius: 50%; width: 120px; height: 120px; font-size: 1.5rem; font-weight: bold; box-shadow: 0 10px 20px rgba(255, 75, 43, 0.4); border: none; }
+        .btn-fire { background: linear-gradient(135deg, #ff416c, #ff4b2b); color: white; border-radius: 50%; width: 100px; height: 100px; font-size: 1.25rem; font-weight: bold; box-shadow: 0 10px 20px rgba(255, 75, 43, 0.4); border: none; }
         .btn-fire:active { transform: scale(0.95); box-shadow: 0 5px 10px rgba(255, 75, 43, 0.4); }
+        
+        .btn-pedal { border-radius: 16px; width: 80px; height: 80px; font-size: 0.9rem; font-weight: bold; border: none; color: white; box-shadow: 0 8px 15px rgba(0,0,0,0.2); transition: transform 0.1s; user-select: none; }
+        .btn-pedal:active { transform: scale(0.95); }
+        .btn-accel { background: linear-gradient(135deg, #38ef7d, #11998e); }
+        .btn-brake { background: linear-gradient(135deg, #ff9966, #ff5e62); }
     </style>
 </head>
 <body>
@@ -61,10 +66,14 @@
             <!-- Added a debug box to show raw gyro data so we know if it's working -->
             <div id="gyro-debug" class="text-xs text-gray-500 font-mono mt-4 text-center px-4">Waiting for motion data...</div>
 
-            <div class="flex-grow flex items-center justify-center w-full mt-10">
+            <!-- New Control Layout: Brake, Fire, Accel -->
+            <div class="flex-grow flex items-center justify-between w-full px-6 mt-10">
+                <button id="btn-brake" class="btn-pedal btn-brake">BRAKE</button>
                 <button id="btn-shoot" class="btn-fire">FIRE</button>
+                <button id="btn-accel" class="btn-pedal btn-accel">ACCEL</button>
             </div>
-            <p class="mt-auto pb-8 text-gray-400 text-sm">Tilt phone to steer the plane</p>
+
+            <p class="mt-auto pb-8 text-gray-400 text-sm">Tilt phone to steer • Hold buttons to change speed</p>
         </div>
     </div>
 
@@ -90,9 +99,13 @@
         let baseGamma = 0;
         let isCalibrated = false;
 
+        // Flight Physics State
         let shipPitch = 0;
         let shipRoll = 0;
         let isFiring = false;
+        let isAccelerating = false;
+        let isBraking = false;
+        let planeSpeed = 2.0; // Starting cruising speed
 
         // Added variables to track gyro status
         let hasReceivedGyroData = false;
@@ -147,6 +160,9 @@
                         shipRoll = data.roll;
                     } else if (data.type === 'action' && data.action === 'fire') {
                         isFiring = true;
+                    } else if (data.type === 'throttle') {
+                        isAccelerating = data.accelerate;
+                        isBraking = data.brake;
                     }
                 });
             });
@@ -237,16 +253,38 @@
                 debugEl.innerText = "Recalibrating...";
             });
 
+            // --- FIRE BUTTON ---
             const btnShoot = document.getElementById('btn-shoot');
             btnShoot.addEventListener('touchstart', (e) => { e.preventDefault(); fireLaser(); });
             btnShoot.addEventListener('mousedown', fireLaser);
 
             function fireLaser() {
+                if (conn && conn.open) conn.send({ type: 'action', action: 'fire' });
+            }
+
+            // --- ACCELERATOR & BRAKE BUTTONS ---
+            const btnAccel = document.getElementById('btn-accel');
+            const btnBrake = document.getElementById('btn-brake');
+
+            function sendThrottle(accel, brake) {
                 if (conn && conn.open) {
-                    conn.send({ type: 'action', action: 'fire' });
+                    conn.send({ type: 'throttle', accelerate: accel, brake: brake });
                 }
             }
 
+            // Accel Events
+            btnAccel.addEventListener('touchstart', (e) => { e.preventDefault(); sendThrottle(true, false); });
+            btnAccel.addEventListener('touchend', (e) => { e.preventDefault(); sendThrottle(false, false); });
+            btnAccel.addEventListener('mousedown', (e) => { sendThrottle(true, false); });
+            btnAccel.addEventListener('mouseup', (e) => { sendThrottle(false, false); });
+
+            // Brake Events
+            btnBrake.addEventListener('touchstart', (e) => { e.preventDefault(); sendThrottle(false, true); });
+            btnBrake.addEventListener('touchend', (e) => { e.preventDefault(); sendThrottle(false, false); });
+            btnBrake.addEventListener('mousedown', (e) => { sendThrottle(false, true); });
+            btnBrake.addEventListener('mouseup', (e) => { sendThrottle(false, false); });
+
+            // --- GYROSCOPE ORIENTATION ---
             function handleOrientation(event) {
                 // If we get here and have valid data, the gyroscope is working!
                 if (event.beta === null || event.gamma === null) return;
@@ -362,10 +400,23 @@
             function animate() {
                 requestAnimationFrame(animate);
 
-                // Simulate flying forward through the sky
+                // --- FLIGHT PHYSICS: Apply Acceleration and Braking ---
+                if (isAccelerating) {
+                    planeSpeed += 0.1;
+                    if (planeSpeed > 6.0) planeSpeed = 6.0; // Max speed
+                } else if (isBraking) {
+                    planeSpeed -= 0.1;
+                    if (planeSpeed < 0.5) planeSpeed = 0.5; // Min speed
+                } else {
+                    // Gradually return to cruising speed (2.0)
+                    if (planeSpeed > 2.0) planeSpeed -= 0.05;
+                    if (planeSpeed < 2.0) planeSpeed += 0.05;
+                }
+
+                // Simulate flying forward through the sky based on planeSpeed
                 const positions = particles.geometry.attributes.position.array;
                 for(let i=2; i<particleCount*3; i+=3) {
-                    positions[i] += 2.0; 
+                    positions[i] += planeSpeed; 
                     if(positions[i] > 50) positions[i] = -150; 
                 }
                 particles.geometry.attributes.position.needsUpdate = true;
@@ -390,7 +441,7 @@
                 }
 
                 for (let i = lasers.length - 1; i >= 0; i--) {
-                    lasers[i].position.z -= 4; 
+                    lasers[i].position.z -= (planeSpeed + 2); // Lasers travel faster than the plane
                     if (lasers[i].position.z < -100) {
                         scene.remove(lasers[i]);
                         lasers.splice(i, 1);
