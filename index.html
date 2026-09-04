@@ -55,12 +55,16 @@
         <div id="controller-active" class="flex-col items-center justify-center h-full w-full" style="display: none;">
             <div class="flex justify-between items-center w-full px-8 pt-8">
                 <span class="text-sm font-bold text-green-500">● Connected</span>
-                <button id="btn-recalibrate" class="text-blue-500 font-bold text-sm bg-blue-100 px-4 py-2 rounded-full">Recalibrate Center</button>
+                <button id="btn-recalibrate" class="text-blue-500 font-bold text-sm bg-blue-100 px-4 py-2 rounded-full shadow-sm">Recalibrate Center</button>
             </div>
-            <div class="flex-grow flex items-center justify-center w-full mt-20">
+            
+            <!-- Added a debug box to show raw gyro data so we know if it's working -->
+            <div id="gyro-debug" class="text-xs text-gray-500 font-mono mt-4 text-center px-4">Waiting for motion data...</div>
+
+            <div class="flex-grow flex items-center justify-center w-full mt-10">
                 <button id="btn-shoot" class="btn-fire">FIRE</button>
             </div>
-            <p class="mt-auto pb-8 text-gray-400 text-sm">Tilt to steer the plane</p>
+            <p class="mt-auto pb-8 text-gray-400 text-sm">Tilt phone to steer the plane</p>
         </div>
     </div>
 
@@ -89,6 +93,10 @@
         let shipPitch = 0;
         let shipRoll = 0;
         let isFiring = false;
+
+        // Added variables to track gyro status
+        let hasReceivedGyroData = false;
+        let gyroDebugTimeout = null;
 
         if (mode === 'controller' && hostPeerId) {
             initController();
@@ -156,22 +164,30 @@
         function initController() {
             document.getElementById('controller-ui').style.display = 'flex';
             const statusEl = document.getElementById('ctrl-status');
+            const debugEl = document.getElementById('gyro-debug');
             
             document.getElementById('btn-start-gyro').addEventListener('click', async () => {
-                statusEl.innerText = "Connecting to Laptop...";
+                statusEl.innerText = "Requesting permissions...";
                 statusEl.className = "mt-4 text-sm font-bold text-blue-500";
                 
+                // CRITICAL: Requesting permission for iOS 13+ devices
                 if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                     try {
                         const permissionState = await DeviceOrientationEvent.requestPermission();
                         if (permissionState !== 'granted') {
-                            alert('Gyroscope permission is required to play.');
+                            alert('Gyroscope permission is required to play. Please allow it or check your device settings.');
+                            statusEl.innerText = "Permission denied.";
+                            statusEl.className = "mt-4 text-sm font-bold text-red-500";
                             return;
                         }
                     } catch (e) {
-                        console.error(e);
+                        console.error("Error requesting DeviceOrientation:", e);
+                        alert("Could not request gyroscope permission. Make sure you are on HTTPS.");
+                        return;
                     }
                 }
+
+                statusEl.innerText = "Connecting to Laptop...";
 
                 peer = new Peer(peerConfig);
                 
@@ -204,11 +220,21 @@
             function activateControllerUI() {
                 document.getElementById('controller-setup').style.display = 'none';
                 document.getElementById('controller-active').style.display = 'flex';
+                
+                // Add the listener for device orientation
                 window.addEventListener('deviceorientation', handleOrientation);
+
+                // Set a timeout to warn the user if no data is received
+                gyroDebugTimeout = setTimeout(() => {
+                    if (!hasReceivedGyroData) {
+                        debugEl.innerHTML = "<span class='text-red-500 font-bold'>No motion detected!</span><br>Check if auto-rotate is on or if your browser blocks sensors.";
+                    }
+                }, 3000);
             }
 
             document.getElementById('btn-recalibrate').addEventListener('click', () => {
                 isCalibrated = false; 
+                debugEl.innerText = "Recalibrating...";
             });
 
             const btnShoot = document.getElementById('btn-shoot');
@@ -222,11 +248,21 @@
             }
 
             function handleOrientation(event) {
-                if (!conn || !conn.open) return;
+                // If we get here and have valid data, the gyroscope is working!
                 if (event.beta === null || event.gamma === null) return;
+                
+                if (!hasReceivedGyroData) {
+                    hasReceivedGyroData = true;
+                    clearTimeout(gyroDebugTimeout);
+                }
 
-                let beta = event.beta;   // Front/back tilt
-                let gamma = event.gamma; // Left/right tilt
+                let beta = event.beta;   // Front/back tilt [-180, 180]
+                let gamma = event.gamma; // Left/right tilt [-90, 90]
+                
+                // Update debug UI
+                document.getElementById('gyro-debug').innerText = `Pitch: ${Math.round(beta)}° | Roll: ${Math.round(gamma)}°`;
+
+                if (!conn || !conn.open) return;
 
                 if (!isCalibrated) {
                     baseBeta = beta;
@@ -235,6 +271,7 @@
                     return;
                 }
 
+                // Calculate difference from the center point
                 let diffBeta = beta - baseBeta;
                 let diffGamma = gamma - baseGamma;
 
